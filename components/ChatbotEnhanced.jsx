@@ -7,7 +7,6 @@ import {
   Settings2,
   Sparkles,
   Volume2,
-  VolumeX,
   Copy,
   Check,
   Pause,
@@ -18,7 +17,7 @@ import { getTTSService, cleanTextForTTS } from "@/utils/textToSpeech";
 import Image from "next/image";
 import toast from "react-hot-toast";
 
-export default function Chatbot({ messages, updateMessages }) {
+export default function Chatbot({ messages = [], updateMessages }) {
   const { isDark } = useContext(ThemeContext);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,6 +57,7 @@ export default function Chatbot({ messages, updateMessages }) {
         recognitionRef.current = new SpeechRecognition();
         recognitionRef.current.continuous = false;
         recognitionRef.current.interimResults = false;
+        recognitionRef.current.lang = 'en-US';
 
         recognitionRef.current.onresult = (event) => {
           const transcript = Array.from(event.results)
@@ -78,8 +78,10 @@ export default function Chatbot({ messages, updateMessages }) {
             toast.error("Microphone access denied");
           } else if (event.error === "no-speech") {
             toast.error("No speech detected");
+          } else if (event.error === "network") {
+            toast.error("Network error");
           } else {
-            toast.error("Speech recognition failed");
+            toast.error("Speech recognition not available");
           }
         };
       } catch (error) {
@@ -106,7 +108,7 @@ export default function Chatbot({ messages, updateMessages }) {
 
   const handleSpeechToText = () => {
     if (!recognitionRef.current) {
-      toast.error("Speech recognition not supported. Try Chrome.");
+      toast.error("Speech recognition not supported. Try Chrome on desktop.");
       return;
     }
 
@@ -387,8 +389,8 @@ export default function Chatbot({ messages, updateMessages }) {
       )}
 
       {/* Messages Area */}
-      <div className={`flex-1 overflow-y-auto ${colors.bg} w-full pb-32`}>
-        {messages.length === 0 ? (
+      <div className={`hide-scrollbar flex-1 overflow-y-auto ${colors.bg} w-full pb-32`}>
+        {!messages || messages.length === 0 ? (
           <div className="flex h-full items-center justify-center px-4">
             <div className="text-center">
               <h1
@@ -553,13 +555,13 @@ export default function Chatbot({ messages, updateMessages }) {
               {/* Voice Input Button */}
               <button
                 onClick={handleSpeechToText}
-                disabled={loading}
+                disabled={loading || !recognitionRef.current}
                 className={`flex-shrink-0 rounded-xl p-2.5 transition-all hover:scale-105 ${
                   isListening
                     ? "bg-red-600 hover:bg-red-700"
                     : `${colors.buttonBg} ${colors.buttonHover}`
-                }`}
-                title="Voice input"
+                } ${!recognitionRef.current ? "opacity-50 cursor-not-allowed" : ""}`}
+                title={!recognitionRef.current ? "Speech recognition not available" : "Voice input"}
               >
                 <Mic
                   className={`h-5 w-5 ${isListening ? "animate-pulse text-white" : isDark ? "text-white" : "text-gray-900"}`}

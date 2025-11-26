@@ -16,6 +16,7 @@ import {
 import { useState, useContext, useEffect } from "react";
 import { ThemeContext } from "@/app/context/ThemeContext";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 export default function Sidebar({
   conversations,
@@ -23,9 +24,10 @@ export default function Sidebar({
   setCurrentId,
   addConversation,
   deleteConversation,
+  updateConversation, // Add this prop
 }) {
   const { isDark, toggleTheme } = useContext(ThemeContext);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Default closed on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -49,13 +51,55 @@ export default function Sidebar({
     setEditTitle(title);
   };
 
-  const saveEdit = (id) => {
-    setEditingId(null);
+  const saveEdit = async (id) => {
+    if (!editTitle.trim()) {
+      toast.error("Title cannot be empty");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      // Call API to update chat title
+      const response = await fetch(`/api/chats/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: editTitle.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local state
+        if (updateConversation) {
+          updateConversation(id, editTitle.trim());
+        }
+        toast.success("Chat title updated");
+        setEditingId(null);
+        setEditTitle("");
+      } else {
+        toast.error(data.error || "Failed to update title");
+      }
+    } catch (error) {
+      console.error("Error updating chat title:", error);
+      toast.error("Failed to update title");
+    }
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditTitle("");
+  };
+
+  const handleKeyPress = (e, id) => {
+    if (e.key === "Enter") {
+      saveEdit(id);
+    } else if (e.key === "Escape") {
+      cancelEdit();
+    }
   };
 
   return (
@@ -74,7 +118,7 @@ export default function Sidebar({
 
       {/* Sidebar */}
       <div
-        className={` ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} w-64 ${isDark ? "bg-slate-900 text-white" : "bg-gray-50 text-gray-900"} flex flex-col border-r transition-transform duration-300 ${isDark ? "border-slate-700" : "border-gray-200"} fixed inset-y-0 left-0 z-40 md:relative md:translate-x-0`}
+        className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"} w-64 ${isDark ? "bg-slate-900 text-white" : "bg-gray-50 text-gray-900"} flex flex-col border-r transition-transform duration-300 ${isDark ? "border-slate-700" : "border-gray-200"} fixed inset-y-0 left-0 z-40 md:relative md:translate-x-0`}
       >
         {/* New Chat Button */}
         <div
@@ -83,7 +127,7 @@ export default function Sidebar({
           <button
             onClick={() => {
               addConversation();
-              setSidebarOpen(false); // Close sidebar after creating chat on mobile
+              setSidebarOpen(false);
             }}
             className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition-colors ${
               isDark
@@ -117,18 +161,22 @@ export default function Sidebar({
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
+                    onKeyDown={(e) => handleKeyPress(e, conv.id)}
                     className={`flex-1 ${isDark ? "bg-slate-700 text-white" : "bg-gray-100 text-gray-900"} rounded px-2 py-1 text-sm outline-none`}
                     autoFocus
+                    maxLength={50}
                   />
                   <button
                     onClick={() => saveEdit(conv.id)}
-                    className="text-green-500 hover:text-green-400"
+                    className="text-green-500 hover:text-green-400 transition-colors"
+                    title="Save"
                   >
                     <Check className="h-4 w-4" />
                   </button>
                   <button
                     onClick={cancelEdit}
-                    className="text-red-500 hover:text-red-400"
+                    className="text-red-500 hover:text-red-400 transition-colors"
+                    title="Cancel"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -141,7 +189,7 @@ export default function Sidebar({
                   <div
                     onClick={() => {
                       setCurrentId(conv.id);
-                      setSidebarOpen(false); // Close sidebar after selecting chat on mobile
+                      setSidebarOpen(false);
                     }}
                     className="flex-1 truncate text-sm"
                   >
@@ -149,14 +197,22 @@ export default function Sidebar({
                   </div>
                   <div className="hidden items-center gap-1 group-hover:flex">
                     <button
-                      onClick={() => startEditing(conv.id, conv.title)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditing(conv.id, conv.title);
+                      }}
                       className={`rounded p-1 transition-colors ${isDark ? "hover:bg-slate-700" : "hover:bg-gray-100"}`}
+                      title="Edit title"
                     >
                       <Edit2 className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => deleteConversation(conv.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteConversation(conv.id);
+                      }}
                       className={`rounded p-1 transition-colors ${isDark ? "text-red-400 hover:bg-slate-700" : "text-red-500 hover:bg-gray-100"}`}
+                      title="Delete chat"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

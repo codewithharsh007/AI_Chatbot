@@ -5,20 +5,35 @@ import { useRouter } from "next/navigation";
 import { Github, Mail } from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
+import toast from "react-hot-toast";
+import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    otp: "",
   });
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
   const router = useRouter();
 
-  const onLogin = async () => {
+  // Timer effect for resend OTP
+  useState(() => {
+    if (resendTimer > 0) {
+      const interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [resendTimer]);
+
+  const requestOTP = async () => {
     if (!formData.email || !formData.password) {
-      alert("Please fill in all fields");
+      toast.error("Please enter email and password");
       return;
     }
 
@@ -28,6 +43,42 @@ export default function LoginPage() {
       const response = await axios.post("/api/auth/login", {
         email: formData.email,
         password: formData.password,
+        action: "request-otp",
+      });
+
+      if (response.data.success) {
+        toast.success("OTP sent to your email!");
+        setOtpSent(true);
+        setResendTimer(60); // 60 seconds cooldown
+      }
+    } catch (error) {
+      console.error("OTP request error:", error);
+      toast.error(error.response?.data?.error || "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onLogin = async () => {
+    if (!otpSent) {
+      // Request OTP first
+      await requestOTP();
+      return;
+    }
+
+    // Verify OTP
+    if (!formData.otp || formData.otp.length !== 6) {
+      toast.error("Please enter the 6-digit OTP");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await axios.post("/api/auth/login", {
+        email: formData.email,
+        otp: formData.otp,
+        action: "verify-otp",
       });
 
       if (response.data.success) {
@@ -35,19 +86,34 @@ export default function LoginPage() {
         localStorage.setItem("token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
         
-        // Redirect to home
-        router.push("/");
+        toast.success("Login successful!");
+        
+        // Redirect based on user role
+        if (response.data.user.isAdmin) {
+          router.push("/admin");
+        } else {
+          router.push("/");
+        }
       }
     } catch (error) {
       console.error("Login error:", error);
-      alert(error.response?.data?.error || "Login failed. Please try again.");
+      toast.error(error.response?.data?.error || "Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleOAuthLogin = async (provider) => {
+    try {
+      await signIn(provider, { callbackUrl: "/" });
+    } catch (error) {
+      console.error(`${provider} login error:`, error);
+      toast.error(`Failed to login with ${provider}`);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4">
+    <div className="flex min-h-screen w-full items-center justify-center bg-linear-to-br from-gray-900 via-gray-800 to-black p-4">
       <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white/95 p-8 shadow-2xl backdrop-blur-sm md:p-10">
         <div className="mb-8 text-center">
           <h2 className="mb-2 text-3xl font-bold text-gray-900">
@@ -94,8 +160,45 @@ export default function LoginPage() {
               onChange={(e) =>
                 setFormData({ ...formData, password: e.target.value })
               }
+              disabled={otpSent}
             />
           </div>
+
+          {otpSent && (
+            <div>
+              <label
+                className="mb-2 block text-sm font-semibold text-gray-700"
+                htmlFor="otp"
+              >
+                Enter OTP
+              </label>
+              <input
+                type="text"
+                id="otp"
+                maxLength={6}
+                className="w-full rounded-lg border-2 border-gray-300 p-3 text-center text-2xl font-bold tracking-widest text-gray-900 transition-all duration-200 outline-none placeholder:text-gray-400 focus:border-gray-800 focus:ring-2 focus:ring-gray-800/20"
+                value={formData.otp}
+                placeholder="000000"
+                onChange={(e) =>
+                  setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })
+                }
+              />
+              {resendTimer > 0 ? (
+                <p className="mt-2 text-sm text-gray-600">
+                  Resend OTP in {resendTimer}s
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={requestOTP}
+                  className="mt-2 text-sm font-semibold text-gray-800 hover:underline"
+                  disabled={loading}
+                >
+                  Resend OTP
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <label className="flex items-center">
@@ -120,10 +223,10 @@ export default function LoginPage() {
           <button
             type="button"
             disabled={loading}
-            className="mt-6 w-full transform rounded-lg bg-gradient-to-r from-gray-900 to-gray-800 p-3.5 font-semibold text-white shadow-lg transition-all duration-300 hover:scale-[1.02] hover:from-gray-800 hover:to-gray-700 hover:shadow-xl active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-6 w-full transform rounded-lg bg-linear-to-r from-gray-900 to-gray-800 p-3.5 font-semibold text-white shadow-lg transition-all duration-300 hover:scale-[1.02] hover:from-gray-800 hover:to-gray-700 hover:shadow-xl active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onLogin}
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? (otpSent ? "Verifying..." : "Sending OTP...") : (otpSent ? "Verify & Sign In" : "Send OTP")}
           </button>
         </form>
 
@@ -142,6 +245,7 @@ export default function LoginPage() {
           <div className="mt-6 grid grid-cols-2 gap-3">
             <button
               type="button"
+              onClick={() => handleOAuthLogin("google")}
               className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-gray-300 p-2.5 font-medium text-gray-900 transition-colors duration-200 hover:bg-gray-50"
             >
               <Mail size={18} />
@@ -149,6 +253,7 @@ export default function LoginPage() {
             </button>
             <button
               type="button"
+              onClick={() => handleOAuthLogin("github")}
               className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-gray-300 p-2.5 font-medium text-gray-900 transition-colors duration-200 hover:bg-gray-50"
             >
               <Github size={18} />

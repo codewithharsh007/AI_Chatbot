@@ -18,7 +18,7 @@ const UserSchema = new mongoose.Schema({
   password: {
     type: String,
     required: function() {
-      return !this.googleId; // Password required only if not Google OAuth
+      return this.provider === 'local' && !this.googleId && !this.githubId && !this.isGuest;
     },
     minlength: [6, 'Password must be at least 6 characters'],
   },
@@ -26,6 +26,30 @@ const UserSchema = new mongoose.Schema({
     type: String,
     sparse: true,
     unique: true,
+  },
+  githubId: {
+    type: String,
+    sparse: true,
+    unique: true,
+  },
+  provider: {
+    type: String,
+    enum: ['local', 'google', 'github', 'guest'],
+    default: 'local',
+  },
+  isGuest: {
+    type: Boolean,
+    default: false,
+  },
+  otp: {
+    type: String,
+  },
+  otpExpiry: {
+    type: Date,
+  },
+  isVerified: {
+    type: Boolean,
+    default: false,
   },
   profilePicture: {
     type: String,

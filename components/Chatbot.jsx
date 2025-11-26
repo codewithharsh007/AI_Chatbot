@@ -436,7 +436,7 @@ export default function Chatbot({ messages, updateMessages }) {
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5 sm:pt-1">
                     <div
-                      className={`${colors.textSecondary} text-sm leading-6 break-words whitespace-pre-wrap sm:text-base sm:leading-7`}
+                      className={`${colors.textSecondary} text-sm leading-6 wrap-break-word whitespace-pre-wrap sm:text-base sm:leading-7`}
                     >
                       {msg.content}
                     </div>

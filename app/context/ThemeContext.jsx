@@ -1,32 +1,52 @@
-/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect } from "react";
 
-export const ThemeContext = createContext();
+// Create context with default value
+export const ThemeContext = createContext({
+  isDark: true,
+  toggleTheme: () => {},
+});
 
 export default function ThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(true);
   const [mounted, setMounted] = useState(false);
 
+  // Initialize theme from localStorage or system preference
   useEffect(() => {
-    // Check localStorage for saved theme
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = localStorage.getItem("theme");
     if (savedTheme) {
-      setIsDark(savedTheme === 'dark');
+      const isDarkMode = savedTheme === "dark";
+      setIsDark(isDarkMode);
     } else {
-      // Check system preference
-      setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setIsDark(prefersDark);
+      localStorage.setItem("theme", prefersDark ? "dark" : "light");
     }
     setMounted(true);
   }, []);
 
+  // Apply theme class to document element
+  useEffect(() => {
+    if (!mounted) return;
+
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDark, mounted]);
+
   const toggleTheme = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
-    localStorage.setItem('theme', newTheme ? 'dark' : 'light');
+    localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
 
-  if (!mounted) return null;
+  // Prevent flash of unstyled content
+  if (!mounted) {
+    return <div style={{ visibility: "hidden" }}>{children}</div>;
+  }
 
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme }}>

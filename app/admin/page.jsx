@@ -6,18 +6,19 @@ import {
   MessageSquare,
   DollarSign,
   Activity,
-  TrendingUp,
   BarChart3,
   PieChart,
   Clock,
   Zap,
   Database,
+  LogOut,
+  User as UserIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({});
   const [analytics, setAnalytics] = useState(null);
   const [users, setUsers] = useState([]);
   const [timeRange, setTimeRange] = useState(7);
@@ -75,7 +76,7 @@ export default function AdminDashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        setStats(data.stats);
+        setStats(data.stats || {});
       }
     } catch (error) {
       console.error("Fetch stats error:", error);
@@ -107,7 +108,7 @@ export default function AdminDashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(data.users);
+        setUsers(data.users || []);
       }
     } catch (error) {
       console.error("Fetch users error:", error);
@@ -141,6 +142,14 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("isGuest");
+    toast.success("Logged out successfully!");
+    router.push("/login");
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-900">
@@ -170,10 +179,24 @@ export default function AdminDashboard() {
               <option value={90}>Last 90 days</option>
             </select>
             <button
+              onClick={() => router.push("/profile")}
+              className="flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-white transition-colors hover:bg-slate-600"
+            >
+              <UserIcon className="h-4 w-4" />
+              Profile
+            </button>
+            <button
               onClick={() => router.push("/")}
               className="rounded-lg bg-slate-700 px-4 py-2 text-white transition-colors hover:bg-slate-600"
             >
               Back to Chat
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-500"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
             </button>
           </div>
         </div>
@@ -183,28 +206,28 @@ export default function AdminDashboard() {
           <StatCard
             icon={<Users className="h-6 w-6" />}
             title="Total Users"
-            value={stats?.totalUsers || 0}
-            subtitle={`+${stats?.newUsersToday || 0} today`}
+            value={stats?.totalUsers ?? 0}
+            subtitle={`+${stats?.newUsersToday ?? 0} today`}
             color="blue"
           />
           <StatCard
             icon={<MessageSquare className="h-6 w-6" />}
             title="Total Chats"
-            value={stats?.totalChats || 0}
-            subtitle={`${stats?.todayRequests || 0} requests today`}
+            value={stats?.totalChats ?? 0}
+            subtitle={`${stats?.todayRequests ?? 0} requests today`}
             color="green"
           />
           <StatCard
             icon={<Activity className="h-6 w-6" />}
             title="API Requests"
-            value={stats?.totalRequests || 0}
-            subtitle={`${stats?.todayRequests || 0} today`}
+            value={stats?.totalRequests ?? 0}
+            subtitle={`${stats?.todayRequests ?? 0} today`}
             color="purple"
           />
           <StatCard
             icon={<DollarSign className="h-6 w-6" />}
             title="Total Cost"
-            value={`$${(stats?.totalCost || 0).toFixed(2)}`}
+            value={`$${(stats?.totalCost ?? 0).toFixed(2)}`}
             subtitle="All time"
             color="yellow"
           />
@@ -220,22 +243,42 @@ export default function AdminDashboard() {
                 <h2 className="text-xl font-bold text-white">Model Usage</h2>
               </div>
               <div className="space-y-3">
-                {Object.entries(analytics.modelUsage).map(([model, count]) => (
-                  <div key={model}>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <span className="text-slate-300">{model}</span>
-                      <span className="text-slate-400">{count} requests</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-700">
-                      <div
-                        className="h-full bg-blue-500"
-                        style={{
-                          width: `${(count / analytics.overview.totalRequests) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                {analytics?.modelUsage &&
+                  Object.entries(analytics.modelUsage.count || {}).map(
+                    ([model, count]) => (
+                      <div key={model}>
+                        <div className="mb-1 flex justify-between text-sm">
+                          <span className="text-slate-300">{model}</span>
+                          <span className="text-slate-400">
+                            {typeof count === "number" ? count : 0} requests
+                          </span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-700">
+                          <div
+                            className="h-full bg-blue-500"
+                            style={{
+                              width:
+                                analytics.overview &&
+                                analytics.overview.totalRequests
+                                  ? `${(count / analytics.overview.totalRequests) * 100}%`
+                                  : "0%",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ),
+                  )}
+                <StatCard
+                  icon={<DollarSign className="h-6 w-6" />}
+                  title="Total Cost"
+                  value={
+                    typeof stats?.totalCost === "number"
+                      ? `$${stats.totalCost.toFixed(2)}`
+                      : "$0.00"
+                  }
+                  subtitle="All time"
+                  color="yellow"
+                />
               </div>
             </div>
 
@@ -245,22 +288,36 @@ export default function AdminDashboard() {
                 <PieChart className="h-5 w-5 text-purple-400" />
                 <h2 className="text-xl font-bold text-white">User Emotions</h2>
               </div>
-              <div className="space-y-3">
-                {Object.entries(analytics.emotionStats).map(([emotion, count]) => (
-                  <div key={emotion} className="flex items-center justify-between">
-                    <span className="capitalize text-slate-300">{emotion}</span>
-                    <span className="rounded-full bg-slate-700 px-3 py-1 text-sm text-slate-300">
-                      {count}
-                    </span>
-                  </div>
-                ))}
+              <div className="max-h-64 space-y-3 overflow-y-auto">
+                {analytics?.emotionStats &&
+                Object.entries(analytics.emotionStats).length > 0 ? (
+                  Object.entries(analytics.emotionStats).map(
+                    ([emotion, count]) => (
+                      <div
+                        key={emotion}
+                        className="flex items-center justify-between rounded-md bg-slate-700 px-4 py-2 text-sm text-slate-300 shadow-sm"
+                      >
+                        <span className="font-medium capitalize">
+                          {emotion}
+                        </span>
+                        <span className="rounded-full bg-slate-600 px-3 py-1 font-semibold">
+                          {typeof count === "number" ? count : 0}
+                        </span>
+                      </div>
+                    ),
+                  )
+                ) : (
+                  <p className="text-center text-slate-400 italic">
+                    No emotion data available.
+                  </p>
+                )}
               </div>
             </div>
           </div>
         )}
 
         {/* Performance Metrics */}
-        {analytics && (
+        {analytics && analytics.overview && (
           <div className="mb-8 grid gap-6 lg:grid-cols-3">
             <MetricCard
               icon={<Clock className="h-5 w-5" />}
@@ -290,19 +347,38 @@ export default function AdminDashboard() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-700 text-left">
-                  <th className="pb-3 text-sm font-semibold text-slate-400">Username</th>
-                  <th className="pb-3 text-sm font-semibold text-slate-400">Email</th>
-                  <th className="pb-3 text-sm font-semibold text-slate-400">Personality</th>
-                  <th className="pb-3 text-sm font-semibold text-slate-400">Status</th>
-                  <th className="pb-3 text-sm font-semibold text-slate-400">Actions</th>
+                  <th className="pb-3 text-sm font-semibold text-slate-400">
+                    Username
+                  </th>
+                  <th className="pb-3 text-sm font-semibold text-slate-400">
+                    Email
+                  </th>
+                  <th className="pb-3 text-sm font-semibold text-slate-400">
+                    Personality
+                  </th>
+                  <th className="pb-3 text-sm font-semibold text-slate-400">
+                    Status
+                  </th>
+                  <th className="pb-3 text-sm font-semibold text-slate-400">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-3 text-center text-slate-400">
+                      No users found
+                    </td>
+                  </tr>
+                )}
                 {users.map((user) => (
                   <tr key={user._id} className="border-b border-slate-700">
                     <td className="py-3 text-white">{user.username}</td>
                     <td className="py-3 text-slate-300">{user.email}</td>
-                    <td className="py-3 text-slate-300">{user.personality}</td>
+                    <td className="py-3 text-slate-300">
+                      {user.personality || "---"}
+                    </td>
                     <td className="py-3">
                       <span
                         className={`rounded-full px-2 py-1 text-xs ${
@@ -316,7 +392,9 @@ export default function AdminDashboard() {
                     </td>
                     <td className="py-3">
                       <button
-                        onClick={() => toggleUserStatus(user._id, user.isActive)}
+                        onClick={() =>
+                          toggleUserStatus(user._id, user.isActive)
+                        }
                         className="rounded bg-slate-700 px-3 py-1 text-sm text-white transition-colors hover:bg-slate-600"
                       >
                         {user.isActive ? "Deactivate" : "Activate"}
@@ -342,7 +420,9 @@ function StatCard({ icon, title, value, subtitle, color }) {
   };
 
   return (
-    <div className={`rounded-xl bg-gradient-to-br ${colors[color]} p-6 text-white shadow-lg`}>
+    <div
+      className={`rounded-xl bg-gradient-to-br ${colors[color]} p-6 text-white shadow-lg`}
+    >
       <div className="mb-4 flex items-center justify-between">
         <div className="rounded-lg bg-white/20 p-3">{icon}</div>
       </div>
